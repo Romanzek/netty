@@ -255,6 +255,8 @@ static jint netty_epoll_native_epollWait(JNIEnv* env, jclass clazz, jint efd, jl
     return -err;
 }
 
+#define EPOLL_WAIT_RESULT(V, ARM_TIMER)  ((jlong) ((uint64_t) ((uint32_t) V) << 32 | ARM_TIMER))
+
 static jlong netty_epoll_native_epollWait0(JNIEnv* env, jclass clazz, jint efd, jlong address, jint len, jint timerFd, jint tvSec, jint tvNsec, jboolean alwaysUseTimer) {
     // only reschedule the timer if there is a newer event.
     // -1 is a special value used by EpollEventLoop.
@@ -273,10 +275,10 @@ static jlong netty_epoll_native_epollWait0(JNIEnv* env, jclass clazz, jint efd, 
                 do {
                     result = epoll_pwait2(efd, ev, len, &ts, NULL);
                     if (result >= 0) {
-                      return ((jlong) (uint64_t) ((uint32_t) result) << 32 | armTimer);
+                        return EPOLL_WAIT_RESULT(result, armTimer);
                     }
                 } while((err = errno) == EINTR);
-                return (jlong) ((uint64_t) ((uint32_t) -err) << 32 | armTimer);
+                return EPOLL_WAIT_RESULT(-err, armTimer);
             }
 
             int millis = tvNsec / 1000000;
@@ -289,7 +291,7 @@ static jlong netty_epoll_native_epollWait0(JNIEnv* env, jclass clazz, jint efd, 
                     tvSec > 0) {
                 millis += tvSec * 1000;
                 int result = netty_epoll_native_epollWait(env, clazz, efd, address, len, millis);
-                return (jlong) ((uint64_t) ((uint32_t) result) << 32 | armTimer);
+                return EPOLL_WAIT_RESULT(result, armTimer);
             }
         }
         struct itimerspec ts;
@@ -303,7 +305,7 @@ static jlong netty_epoll_native_epollWait0(JNIEnv* env, jclass clazz, jint efd, 
         armTimer = 1;
     }
     int result = netty_epoll_native_epollWait(env, clazz, efd, address, len, -1);
-    return (jlong) ((uint64_t) ((uint32_t) result) << 32 | armTimer);
+    return EPOLL_WAIT_RESULT(result, armTimer);
 }
 
 static inline void cpu_relax() {
